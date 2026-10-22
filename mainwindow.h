@@ -16,6 +16,7 @@
 #include <QComboBox>
 #include <QLineEdit>
 #include <QCheckBox>
+#include "calibracion.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -32,6 +33,8 @@ private slots:
     void guardarImagenLayout();
     void mostrarInformacion();
     void restaurarValores();
+    void abrirAutocalibracion();
+    void buscarActualizacion();
 
 private:
     QWidget *contenedorImagenes;
@@ -75,6 +78,10 @@ private:
 
     // Datos de OpenCV
     cv::Mat imagenOriginal;
+    cv::Mat imgProcesada;
+    cv::Rect rectPlaca;
+    cv::Vec3i circuloPlaca;
+    bool hayCirculo = false;
 
     int totalColoniasContadas;
     bool pausarProceso = false;
@@ -88,6 +95,7 @@ private:
     void mostrarImagen(QLabel *destino, const QImage &imagen, const QString &titulo);
     void mostrarDesactivada(QLabel *destino, const QString &nombre, const QSize &tamImagen);
     void acomodarCapas();
+    void calibrar(const QVector<Marca> &marcas);
 };
 
 #endif // MAINWINDOW_H

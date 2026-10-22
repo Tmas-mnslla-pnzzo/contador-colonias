@@ -13,6 +13,12 @@
 #include <QPainter>
 #include <QTabWidget>
 #include <QSlider>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QVersionNumber>
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     totalColoniasContadas = 0; // Inicializamos la variable
@@ -20,6 +26,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     cargarConfiguracion();
     setWindowTitle("Análisis de Placas de Petri v" APP_VERSION " - Laboratorio de Microbiología y Biotecnología de Alimentos (MIBIAL) de la Facultad de Ciencias de la Alimentación UNER");
     setWindowIcon(QIcon(":/icono.svg"));
+    QTimer::singleShot(1000, this, &MainWindow::buscarActualizacion);
     resize(1200, 800);
 }
 
@@ -128,6 +135,10 @@ void MainWindow::inicializarUI() {
     layoutBotones2->addWidget(btnGuardarConfig);
     layoutBotones2->addWidget(btnInfo);
     layoutDerecho->addLayout(layoutBotones2);
+
+    QPushButton *btnAutocalibracion = new QPushButton("Autocalibración", this);
+    layoutDerecho->addWidget(btnAutocalibracion);
+    connect(btnAutocalibracion, &QPushButton::clicked, this, &MainWindow::abrirAutocalibracion);
 
     layoutDerecho->addSpacing(15);
     layoutDerecho->addWidget(new QLabel("<b>Información:</b>", this));
@@ -522,6 +533,14 @@ void MainWindow::procesarImagen() {
         lblColoniasB->setText("Colonias azules: " + QString::number(azules));
     }
 
+    imgProcesada = imgRedimensionada;
+    hayCirculo = !circulos.empty();
+    circuloPlaca = cv::Vec3i(x_circulo, y_circulo, r_circulo);
+    rectPlaca = cv::Rect(0, 0, imgRedimensionada.cols, imgRedimensionada.rows);
+    if (hayCirculo) {
+        rectPlaca &= cv::Rect(x_circulo - r_circulo - 4, y_circulo - r_circulo - 4, 2 * (r_circulo + 4), 2 * (r_circulo + 4));
+    }
+
     // --- RENDERIZADO EN UI ---
     lblSinImagen->hide();
     acomodarCapas();
@@ -644,6 +663,250 @@ void MainWindow::acomodarCapas() {
         }
     }
     grilla->activate();
+}
+
+void MainWindow::buscarActualizacion() {
+    QNetworkAccessManager *red = new QNetworkAccessManager(this);
+    QNetworkRequest pedido(QUrl("https://api.github.com/repos/Tmas-mnslla-pnzzo/contador-colonias/releases/latest"));
+    pedido.setHeader(QNetworkRequest::UserAgentHeader, "ContadorColonias/" APP_VERSION);
+    pedido.setTransferTimeout(8000);
+    QNetworkReply *respuesta = red->get(pedido);
+
+    connect(respuesta, &QNetworkReply::finished, this, [this, red, respuesta]() {
+        respuesta->deleteLater();
+        red->deleteLater();
+        if (respuesta->error() != QNetworkReply::NoError) return;
+
+        QJsonObject datos = QJsonDocument::fromJson(respuesta->readAll()).object();
+        QString etiqueta = datos.value("tag_name").toString();
+        if (etiqueta.startsWith('v')) etiqueta.remove(0, 1);
+
+        QVersionNumber nueva = QVersionNumber::fromString(etiqueta);
+        QVersionNumber actual = QVersionNumber::fromString(APP_VERSION);
+        if (nueva.isNull() || nueva <= actual) return;
+
+        QString enlace = datos.value("html_url").toString();
+        QMessageBox aviso(this);
+        aviso.setWindowTitle("Actualización disponible");
+        aviso.setIcon(QMessageBox::Information);
+        aviso.setTextFormat(Qt::RichText);
+        aviso.setTextInteractionFlags(Qt::TextBrowserInteraction);
+        aviso.setText(QString("Hay una versión nueva del programa: <b>%1</b> (versión instalada: %2).<br><br>"
+                              "<a href=\"%3\">Descargar la versión %1</a><br><br>"
+                              "En la página, bajar el archivo <i>InstaladorContadorColonias</i> y ejecutarlo.")
+                          .arg(etiqueta, APP_VERSION, enlace));
+        aviso.exec();
+    });
+}
+
+void MainWindow::abrirAutocalibracion() {
+    if (imgProcesada.empty()) {
+        QMessageBox::information(this, "Autocalibración", "Primero hay que cargar una imagen.");
+        return;
+    }
+
+    cv::Mat recorte;
+    cv::cvtColor(imgProcesada(rectPlaca), recorte, cv::COLOR_BGR2RGB);
+    if (hayCirculo) {
+        cv::circle(recorte, cv::Point(circuloPlaca[0] - rectPlaca.x, circuloPlaca[1] - rectPlaca.y), circuloPlaca[2],
+                   cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
+    }
+
+    DialogoCalibracion dialogo(matToQImage(recorte), this);
+    if (dialogo.exec() != QDialog::Accepted) return;
+
+    QVector<Marca> marcas = dialogo.marcas();
+    for (Marca &m : marcas) {
+        m.punto += QPoint(rectPlaca.x, rectPlaca.y);
+    }
+    calibrar(marcas);
+}
+
+void MainWindow::calibrar(const QVector<Marca> &marcas) {
+    cv::Mat fondo;
+    cv::medianBlur(imgProcesada, fondo, spinFondo->value() | 1);
+
+    cv::Mat lab, labFondo, hsv;
+    cv::cvtColor(imgProcesada, lab, cv::COLOR_BGR2Lab);
+    cv::cvtColor(fondo, labFondo, cv::COLOR_BGR2Lab);
+    cv::cvtColor(imgProcesada, hsv, cv::COLOR_BGR2HSV);
+    std::vector<cv::Mat> c, cf, ch;
+    cv::split(lab, c);
+    cv::split(labFondo, cf);
+    cv::split(hsv, ch);
+
+    cv::Mat L, Lf, a, af;
+    c[0].convertTo(L, CV_32F);
+    cf[0].convertTo(Lf, CV_32F);
+    c[1].convertTo(a, CV_32F);
+    cf[1].convertTo(af, CV_32F);
+    cv::Mat oscuridad = Lf - L;
+    cv::Mat deltaMagenta = a - af;
+    cv::Rect imagenCompleta(0, 0, imgProcesada.cols, imgProcesada.rows);
+
+    auto picoCercano = [&](QPoint p, int radio) {
+        cv::Rect zona = cv::Rect(p.x() - radio, p.y() - radio, 2 * radio + 1, 2 * radio + 1) & imagenCompleta;
+        double maximo;
+        cv::Point posicion;
+        cv::minMaxLoc(oscuridad(zona), nullptr, &maximo, nullptr, &posicion);
+        return std::make_pair(posicion + zona.tl(), float(maximo));
+    };
+
+    std::vector<cv::Point> picos;
+    std::vector<float> valoresPico, picosColonia, ruidoFondo;
+    for (const Marca &m : marcas) {
+        auto [posicion, valor] = picoCercano(m.punto, 4);
+        picos.push_back(posicion);
+        valoresPico.push_back(valor);
+        if (m.tipo == MarcaFondo) {
+            ruidoFondo.push_back(valor);
+        } else {
+            picosColonia.push_back(valor);
+        }
+    }
+
+    std::vector<float> ordenados = picosColonia;
+    std::nth_element(ordenados.begin(), ordenados.begin() + ordenados.size() / 2, ordenados.end());
+    float medianaColonia = ordenados[ordenados.size() / 2];
+    std::vector<bool> descartada(marcas.size(), false);
+    int descartadas = 0;
+    picosColonia.clear();
+    for (int i = 0; i < marcas.size(); i++) {
+        if (marcas[i].tipo == MarcaFondo) continue;
+        if (valoresPico[i] < 0.4f * medianaColonia) {
+            descartada[i] = true;
+            descartadas++;
+        } else {
+            picosColonia.push_back(valoresPico[i]);
+        }
+    }
+
+    float minimoColonia = *std::min_element(picosColonia.begin(), picosColonia.end());
+    float maximoFondo = *std::max_element(ruidoFondo.begin(), ruidoFondo.end());
+    bool separables = minimoColonia > maximoFondo + 1;
+    int umbralOscuro = separables ? cvRound((minimoColonia + maximoFondo) / 2) : cvRound(minimoColonia - 1);
+    umbralOscuro = std::clamp(umbralOscuro, 8, 100);
+
+    struct Region { int area; double magenta; std::vector<int> saturaciones; std::vector<int> tonos; };
+    auto regionDe = [&](cv::Point pico) {
+        Region r{1, deltaMagenta.at<float>(pico), {ch[1].at<uchar>(pico)}, {ch[0].at<uchar>(pico)}};
+        cv::Rect zona = cv::Rect(pico.x - 30, pico.y - 30, 61, 61) & imagenCompleta;
+        cv::Mat mascara = oscuridad(zona) > umbralOscuro;
+        cv::Point local = pico - zona.tl();
+        if (!mascara.at<uchar>(local)) return r;
+
+        cv::Mat etiquetas;
+        cv::connectedComponents(mascara, etiquetas, 8, CV_32S);
+        int etiqueta = etiquetas.at<int>(local);
+        r = Region{0, 0, {}, {}};
+        for (int y = 0; y < etiquetas.rows; y++) {
+            for (int x = 0; x < etiquetas.cols; x++) {
+                if (etiquetas.at<int>(y, x) != etiqueta) continue;
+                cv::Point g = cv::Point(x, y) + zona.tl();
+                r.area++;
+                r.magenta += deltaMagenta.at<float>(g);
+                r.saturaciones.push_back(ch[1].at<uchar>(g));
+                r.tonos.push_back(ch[0].at<uchar>(g));
+            }
+        }
+        r.magenta /= r.area;
+        return r;
+    };
+
+    std::vector<Region> violetas, azules;
+    for (int i = 0; i < marcas.size(); i++) {
+        if (descartada[i]) continue;
+        if (marcas[i].tipo == MarcaVioleta) violetas.push_back(regionDe(picos[i]));
+        else if (marcas[i].tipo == MarcaAzul) azules.push_back(regionDe(picos[i]));
+    }
+
+    bool calibrarVioletas = std::any_of(marcas.begin(), marcas.end(), [](const Marca &m) { return m.tipo == MarcaVioleta; });
+    bool calibrarAzules = std::any_of(marcas.begin(), marcas.end(), [](const Marca &m) { return m.tipo == MarcaAzul; });
+    if ((calibrarVioletas && violetas.size() < 2) || (calibrarAzules && azules.size() < 2)) {
+        QMessageBox::warning(this, "Autocalibración",
+                             "Quedaron muy pocas marcas válidas de colonias violetas o azules. "
+                             "No se cambió ningún valor. Volver a marcar sobre colonias bien visibles.");
+        return;
+    }
+
+    int umbralMagenta = spinUmbralMagenta->value();
+    if (calibrarVioletas) {
+        double minMagenta = 1e9;
+        for (const Region &r : violetas) minMagenta = std::min(minMagenta, r.magenta);
+        umbralMagenta = std::clamp(int(std::floor(minMagenta)) - 2, -20, 30);
+    }
+
+    int satAzul = spinSatAzul->value();
+    int fraccionAzul = spinFraccionAzul->value();
+    int areaMinAzul = spinAreaMinAzul->value();
+    if (calibrarAzules) {
+        double minSaturacionAzul = 255;
+        for (Region &r : azules) {
+            std::vector<int> s = r.saturaciones;
+            std::nth_element(s.begin(), s.begin() + s.size() / 2, s.end());
+            minSaturacionAzul = std::min(minSaturacionAzul, double(s[s.size() / 2]));
+        }
+        satAzul = std::clamp(int(minSaturacionAzul * 0.6), 0, 255);
+
+        auto fraccionAzulDe = [&](const Region &r) {
+            int n = 0;
+            for (size_t i = 0; i < r.tonos.size(); i++) {
+                if (r.tonos[i] >= 90 && r.tonos[i] <= 125 && r.saturaciones[i] >= satAzul) n++;
+            }
+            return double(n) / r.tonos.size();
+        };
+        double minFraccionAzul = 1;
+        for (const Region &r : azules) minFraccionAzul = std::min(minFraccionAzul, fraccionAzulDe(r));
+        fraccionAzul = cvRound(minFraccionAzul * 50);
+        fraccionAzul = std::clamp(fraccionAzul, 5, 95);
+
+        int minAreaAzul = INT_MAX;
+        for (const Region &r : azules) minAreaAzul = std::min(minAreaAzul, r.area);
+        areaMinAzul = std::max(1, int(minAreaAzul * 0.3));
+    }
+
+    int minArea = INT_MAX, maxArea = 0;
+    for (const auto *grupo : {&violetas, &azules}) {
+        for (const Region &r : *grupo) {
+            minArea = std::min(minArea, r.area);
+            maxArea = std::max(maxArea, r.area);
+        }
+    }
+    int areaMin = std::max(1, int(minArea * 0.7));
+    int areaMax = std::clamp(int(std::ceil(maxArea * 1.5)), std::max(areaMin + 1, 50), 5000);
+
+    pausarProceso = true;
+    spinUmbralOscuro->setValue(umbralOscuro);
+    spinUmbralMagenta->setValue(umbralMagenta);
+    spinSatAzul->setValue(satAzul);
+    spinFraccionAzul->setValue(fraccionAzul);
+    spinAreaMinAzul->setValue(areaMinAzul);
+    spinAreaMin->setValue(areaMin);
+    spinAreaMax->setValue(areaMax);
+    pausarProceso = false;
+    procesarImagen();
+
+    QString resumen = QString("Valores calculados a partir de las marcas:<br><br>"
+                              "Umbral oscuro: %1<br>Umbral violeta: %2<br>Saturación azul: %3<br>"
+                              "% azul: %4<br>Área mín. azul: %5<br>Área mínima: %6<br>Área máxima: %7<br><br>"
+                              "Para conservarlos al reabrir el programa, usar <i>Guardar config.</i>")
+                          .arg(umbralOscuro).arg(umbralMagenta).arg(satAzul).arg(fraccionAzul)
+                          .arg(areaMinAzul).arg(areaMin).arg(areaMax);
+    if (!calibrarVioletas) {
+        resumen += "<br><br>No se marcaron violetas: el umbral violeta quedó como estaba.";
+    }
+    if (!calibrarAzules) {
+        resumen += "<br><br>No se marcaron azules: saturación azul, % azul y área mín. azul quedaron como estaban.";
+    }
+    if (descartadas > 0) {
+        resumen += QString("<br><br><b>Atención:</b> se descartaron %1 marca(s) de colonia porque son mucho más claras "
+                           "que el resto y probablemente no sean colonias.").arg(descartadas);
+    }
+    if (!separables) {
+        resumen += "<br><br><b>Atención:</b> alguna marca de fondo es tan oscura como la colonia más clara. "
+                   "Revisar que las marcas de fondo estén sobre zonas limpias.";
+    }
+    QMessageBox::information(this, "Autocalibración aplicada", resumen);
 }
 
 void MainWindow::mostrarDesactivada(QLabel *destino, const QString &nombre, const QSize &tamImagen) {
