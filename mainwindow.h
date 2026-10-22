@@ -9,7 +9,9 @@
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QImage>
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QCheckBox>
@@ -55,8 +57,9 @@ private:
     QSpinBox *spinRadioMin, *spinRadioMax;
     QSpinBox *spinHough1, *spinHough2;
     QSpinBox *spinReduccionRadio;
-    QSpinBox *spinRMin, *spinGMin, *spinBMin;
-    QSpinBox *spinRMax, *spinGMax, *spinBMax;
+    QSpinBox *spinFondo, *spinUmbralOscuro;
+    QSpinBox *spinUmbralMagenta, *spinSatAzul;
+    QSpinBox *spinAreaMinAzul, *spinFraccionAzul;
     QSpinBox *spinAreaMin, *spinAreaMax;
 
     QCheckBox *chkMostrarOriginal;

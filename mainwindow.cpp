@@ -14,8 +14,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     totalColoniasContadas = 0; // Inicializamos la variable
     inicializarUI();
     cargarConfiguracion();
-    setWindowTitle("Análisis de Placas de Petri v0.9.0 - Laboratorio de Microbiología y Biotecnología de Alimentos (MIBIAL) de la Facultad de Ciencias de la Alimentación UNER");
-    setWindowIcon(QIcon("C:/Users/tomi/Documents/ContadorColonias/logo.png"));
+    setWindowTitle("Análisis de Placas de Petri v" APP_VERSION " - Laboratorio de Microbiología y Biotecnología de Alimentos (MIBIAL) de la Facultad de Ciencias de la Alimentación UNER");
+    setWindowIcon(QIcon(":/icono.svg"));
     resize(1200, 800);
 }
 
@@ -57,7 +57,7 @@ void MainWindow::inicializarUI() {
     layoutImagenes->addWidget(new QLabel("<b>2. Mapa de Diagnóstico</b>"), 0, 1, Qt::AlignCenter);
     layoutImagenes->addWidget(lblImagenDiagnostico, 1, 1);
 
-    layoutImagenes->addWidget(new QLabel("<b>3. Máscara RGB</b>"), 2, 0, Qt::AlignCenter);
+    layoutImagenes->addWidget(new QLabel("<b>3. Máscara de Manchas</b>"), 2, 0, Qt::AlignCenter);
     layoutImagenes->addWidget(lblImagenParametrica, 3, 0);
 
     layoutImagenes->addWidget(new QLabel("<b>4. Resultado Final</b>"), 2, 1, Qt::AlignCenter);
@@ -81,8 +81,8 @@ void MainWindow::inicializarUI() {
     lblInfoNombre = new QLabel("Nombre: -", this);
     lblInfoResolucion = new QLabel("Resolución original: -", this);
     lblInfoResolucionNueva = new QLabel("Resolución actual: -", this);
-    lblColoniasA = new QLabel("Cantidad de colonias (Rojo): -", this);
-    lblColoniasB = new QLabel("Cantidad de colonias (Azul): -", this);
+    lblColoniasA = new QLabel("Colonias violetas: -", this);
+    lblColoniasB = new QLabel("Colonias azules: -", this);
     lblInfoNombre->setWordWrap(true);
 
     comboBacterias = new QComboBox(this);
@@ -128,7 +128,7 @@ void MainWindow::inicializarUI() {
 
     chkMostrarOriginal = new QCheckBox("Mostrar Original", this);
     chkMostrarDiagnostico = new QCheckBox("Mostrar Diagnóstico", this);
-    chkMostrarRGB = new QCheckBox("Mostrar RGB", this);
+    chkMostrarRGB = new QCheckBox("Mostrar Máscara", this);
     chkMostrarResultado = new QCheckBox("Mostrar Resultado", this);
     chkDividirLinea = new QCheckBox("Dividir con Línea", this);
     chkMostrarPuntos = new QCheckBox("Mostrar Puntos", this);
@@ -163,14 +163,14 @@ void MainWindow::inicializarUI() {
     spinHough1 = crearSpinBox(1, 255, 50);
     spinHough2 = crearSpinBox(1, 100, 30);
     spinReduccionRadio = crearSpinBox(0, 100, 12);
-    spinRMin = crearSpinBox(0, 255, 160);
-    spinGMin = crearSpinBox(0, 255, 160);
-    spinBMin = crearSpinBox(0, 255, 140);
-    spinRMax = crearSpinBox(0, 255, 255);
-    spinGMax = crearSpinBox(0, 255, 255);
-    spinBMax = crearSpinBox(0, 255, 255);
-    spinAreaMin = crearSpinBox(0, 500, 1);
-    spinAreaMax = crearSpinBox(1, 5000, 200);
+    spinFondo = crearSpinBox(3, 151, 31);
+    spinUmbralOscuro = crearSpinBox(1, 100, 25);
+    spinUmbralMagenta = crearSpinBox(-20, 30, 0);
+    spinSatAzul = crearSpinBox(0, 255, 45);
+    spinAreaMinAzul = crearSpinBox(0, 1000, 15);
+    spinFraccionAzul = crearSpinBox(0, 100, 30);
+    spinAreaMin = crearSpinBox(0, 500, 2);
+    spinAreaMax = crearSpinBox(1, 5000, 800);
 
     layoutDerecho->addWidget(new QLabel("<b>Parametros:</b>", this));
     // Fila 0
@@ -198,22 +198,22 @@ void MainWindow::inicializarUI() {
     layoutParametros->addWidget(spinReduccionRadio, 3, 3);
 
     // Fila 4
-    layoutParametros->addWidget(new QLabel("Rojo Mín:"), 4, 0);
-    layoutParametros->addWidget(spinRMin, 4, 1);
-    layoutParametros->addWidget(new QLabel("Rojo Máx:"), 4, 2);
-    layoutParametros->addWidget(spinRMax, 4, 3);
+    layoutParametros->addWidget(new QLabel("Fondo (px):"), 4, 0);
+    layoutParametros->addWidget(spinFondo, 4, 1);
+    layoutParametros->addWidget(new QLabel("Umbral Osc.:"), 4, 2);
+    layoutParametros->addWidget(spinUmbralOscuro, 4, 3);
 
     // Fila 5
-    layoutParametros->addWidget(new QLabel("Verde Mín:"), 5, 0);
-    layoutParametros->addWidget(spinGMin, 5, 1);
-    layoutParametros->addWidget(new QLabel("Verde Máx:"), 5, 2);
-    layoutParametros->addWidget(spinGMax, 5, 3);
+    layoutParametros->addWidget(new QLabel("Umbral Viol.:"), 5, 0);
+    layoutParametros->addWidget(spinUmbralMagenta, 5, 1);
+    layoutParametros->addWidget(new QLabel("Sat. Azul:"), 5, 2);
+    layoutParametros->addWidget(spinSatAzul, 5, 3);
 
     // Fila 6
-    layoutParametros->addWidget(new QLabel("Azul Mín:"), 6, 0);
-    layoutParametros->addWidget(spinBMin, 6, 1);
-    layoutParametros->addWidget(new QLabel("Azul Máx:"), 6, 2);
-    layoutParametros->addWidget(spinBMax, 6, 3);
+    layoutParametros->addWidget(new QLabel("Área Mín Az.:"), 6, 0);
+    layoutParametros->addWidget(spinAreaMinAzul, 6, 1);
+    layoutParametros->addWidget(new QLabel("% Azul:"), 6, 2);
+    layoutParametros->addWidget(spinFraccionAzul, 6, 3);
 
     // Fila 7
     layoutParametros->addWidget(new QLabel("Área Mín:"), 7, 0);
@@ -363,105 +363,143 @@ void MainWindow::procesarImagen() {
         }
     }
 
-    cv::Mat imgAislada;
-    cv::bitwise_and(imgRGB, imgRGB, imgAislada, mascara_placa);
-
-    // --- NUEVO: OPTIMIZACIÓN CON ROI (Región de Interés) ---
-    // 1. Calculamos el cuadrado exacto que encierra al círculo sin pasarnos de los bordes
     int roi_x = std::max(0, x_circulo - r_circulo);
     int roi_y = std::max(0, y_circulo - r_circulo);
     int roi_w = std::min(imgRedimensionada.cols - roi_x, r_circulo * 2);
     int roi_h = std::min(imgRedimensionada.rows - roi_y, r_circulo * 2);
     cv::Rect roi(roi_x, roi_y, roi_w, roi_h);
 
-    // 2. Preparamos una máscara negra del tamaño total
     cv::Mat mascara_colonias = cv::Mat::zeros(imgRedimensionada.size(), CV_8UC1);
+    cv::Mat deltaMagenta = cv::Mat::zeros(imgRedimensionada.size(), CV_32FC1);
+    cv::Mat mascaraAzul = cv::Mat::zeros(imgRedimensionada.size(), CV_8UC1);
 
-    // 3. Segmentamos SOLO el cuadradito (Ahorra procesar miles de píxeles negros inútiles)
     if (roi.width > 0 && roi.height > 0) {
-        cv::Mat imgAislada_ROI = imgAislada(roi);
-        cv::Mat mascara_colonias_ROI;
-        cv::Scalar colorMin(spinRMin->value(), spinGMin->value(), spinBMin->value());
-        cv::Scalar colorMax(spinRMax->value(), spinGMax->value(), spinBMax->value());
-        cv::inRange(imgAislada_ROI, colorMin, colorMax, mascara_colonias_ROI);
+        cv::Mat zona = imgRedimensionada(roi);
+        int k = spinFondo->value() | 1;
+        cv::Mat fondo;
+        cv::medianBlur(zona, fondo, k);
 
-        // 4. Pegamos el cuadradito ya procesado en nuestra máscara grande
-        mascara_colonias_ROI.copyTo(mascara_colonias(roi));
+        cv::Mat lab, labFondo;
+        cv::cvtColor(zona, lab, cv::COLOR_BGR2Lab);
+        cv::cvtColor(fondo, labFondo, cv::COLOR_BGR2Lab);
+        std::vector<cv::Mat> c, cf;
+        cv::split(lab, c);
+        cv::split(labFondo, cf);
+
+        cv::Mat L, Lf, a, af;
+        c[0].convertTo(L, CV_32F);
+        cf[0].convertTo(Lf, CV_32F);
+        c[1].convertTo(a, CV_32F);
+        cf[1].convertTo(af, CV_32F);
+
+        cv::Mat oscuro = (Lf - L) > spinUmbralOscuro->value();
+        oscuro &= mascara_placa(roi);
+        cv::morphologyEx(oscuro, oscuro, cv::MORPH_OPEN, cv::Mat::ones(2, 2, CV_8U));
+        oscuro.copyTo(mascara_colonias(roi));
+
+        cv::Mat(a - af).copyTo(deltaMagenta(roi));
+
+        cv::Mat hsv;
+        cv::cvtColor(zona, hsv, cv::COLOR_BGR2HSV);
+        cv::Mat azul;
+        cv::inRange(hsv, cv::Scalar(90, spinSatAzul->value(), 0), cv::Scalar(125, 255, 255), azul);
+        azul.copyTo(mascaraAzul(roi));
     }
 
-    // 3. Extracción de momentos y evaluación espacial (Tú código original)
     std::vector<std::vector<cv::Point>> contornos;
-    cv::findContours(mascara_colonias, contornos, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(mascara_colonias, contornos, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
     if (chkDividirLinea->isChecked() && chkMostrarDiagnostico->isChecked()) {
         cv::line(mascaraDiagnostico, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(50, 50, 50), 1);
     }
 
-    int ladoA = 0, ladoB = 0, ignoradas = 0;
+    int violetasA = 0, violetasB = 0, azulesA = 0, azulesB = 0, ignoradas = 0;
     int zonaMuertaPx = spinZonaMuerta->value();
+    double fraccionAzulMin = spinFraccionAzul->value() / 100.0;
 
     for (size_t i = 0; i < contornos.size(); i++) {
-        double area = cv::contourArea(contornos[i]);
+        cv::Rect caja = cv::boundingRect(contornos[i]);
+        cv::Mat mancha = cv::Mat::zeros(caja.size(), CV_8UC1);
+        cv::drawContours(mancha, contornos, i, cv::Scalar(255), cv::FILLED, cv::LINE_8, cv::noArray(), 0, -caja.tl());
+        int area = cv::countNonZero(mancha);
 
-        if (chkMostrarDiagnostico->isChecked()) {
-            if (area <= spinAreaMin->value()) {
-                cv::drawContours(mascaraDiagnostico, contornos, i, cv::Scalar(150, 0, 150), cv::FILLED);
-            } else if (area >= spinAreaMax->value()) {
-                cv::drawContours(mascaraDiagnostico, contornos, i, cv::Scalar(255, 255, 0), cv::FILLED);
+        if (area < spinAreaMin->value() || area > spinAreaMax->value()) {
+            if (chkMostrarDiagnostico->isChecked()) {
+                cv::Scalar color = area < spinAreaMin->value() ? cv::Scalar(150, 0, 150) : cv::Scalar(255, 255, 0);
+                cv::drawContours(mascaraDiagnostico, contornos, i, color, cv::FILLED);
             }
+            continue;
         }
 
-        if (area > spinAreaMin->value() && area < spinAreaMax->value()) {
-            cv::Moments M = cv::moments(contornos[i]);
-            if (M.m00 != 0) {
-                int cX = static_cast<int>(M.m10 / M.m00);
-                int cY = static_cast<int>(M.m01 / M.m00);
+        double fraccionAzul = cv::mean(mascaraAzul(caja), mancha)[0] / 255.0;
+        double magenta = cv::mean(deltaMagenta(caja), mancha)[0];
 
-                if (chkDividirLinea->isChecked()) {
-                    double numerador = std::abs((x2 - x1) * (y1 - cY) - (x1 - cX) * (y2 - y1));
-                    double distancia_ortogonal = numerador / norma_recta;
+        bool esAzul = fraccionAzul >= fraccionAzulMin && area >= spinAreaMinAzul->value();
+        bool esVioleta = !esAzul && magenta > spinUmbralMagenta->value();
 
-                    if (distancia_ortogonal <= zonaMuertaPx) {
-                        if (chkMostrarDiagnostico->isChecked()) {
-                            cv::drawContours(mascaraDiagnostico, contornos, i, cv::Scalar(100, 100, 100), cv::FILLED);
-                        }
-                        ignoradas++;
-                        continue;
-                    }
+        if (!esAzul && !esVioleta) {
+            if (chkMostrarDiagnostico->isChecked()) {
+                cv::drawContours(mascaraDiagnostico, contornos, i, cv::Scalar(90, 60, 30), cv::FILLED);
+            }
+            ignoradas++;
+            continue;
+        }
 
-                    if (chkMostrarDiagnostico->isChecked()) {
-                        cv::drawContours(mascaraDiagnostico, contornos, i, cv::Scalar(0, 255, 0), cv::FILLED);
-                    }
+        cv::Moments M = cv::moments(mancha, true);
+        if (M.m00 == 0) continue;
+        int cX = caja.x + static_cast<int>(M.m10 / M.m00);
+        int cY = caja.y + static_cast<int>(M.m01 / M.m00);
 
-                    double val_lado = (x1 - x2) * (cY - y2) - (y1 - y2) * (cX - x2);
-                    if (val_lado > 0) {
-                        ladoA++;
-                        if (chkMostrarResultado->isChecked() && chkMostrarPuntos->isChecked())
-                            cv::circle(imgResultado, cv::Point(cX, cY), 3, cv::Scalar(255, 0, 0), cv::FILLED);
-                    } else {
-                        ladoB++;
-                        if (chkMostrarResultado->isChecked() && chkMostrarPuntos->isChecked())
-                            cv::circle(imgResultado, cv::Point(cX, cY), 3, cv::Scalar(0, 0, 255), cv::FILLED);
-                    }
-                } else {
-                    if (chkMostrarDiagnostico->isChecked()) {
-                        cv::drawContours(mascaraDiagnostico, contornos, i, cv::Scalar(0, 255, 0), cv::FILLED);
-                    }
-                    ladoB++;
-                    if (chkMostrarResultado->isChecked() && chkMostrarPuntos->isChecked()) {
-                        cv::circle(imgResultado, cv::Point(cX, cY), 3, cv::Scalar(0, 0, 255), cv::FILLED);
-                    }
+        bool ladoA = false;
+        if (chkDividirLinea->isChecked()) {
+            double numerador = std::abs((x2 - x1) * (y1 - cY) - (x1 - cX) * (y2 - y1));
+            double distancia_ortogonal = numerador / norma_recta;
+
+            if (distancia_ortogonal <= zonaMuertaPx) {
+                if (chkMostrarDiagnostico->isChecked()) {
+                    cv::drawContours(mascaraDiagnostico, contornos, i, cv::Scalar(100, 100, 100), cv::FILLED);
                 }
+                ignoradas++;
+                continue;
+            }
+
+            double val_lado = (x1 - x2) * (cY - y2) - (y1 - y2) * (cX - x2);
+            ladoA = val_lado > 0;
+        }
+
+        if (esAzul) {
+            ladoA ? azulesA++ : azulesB++;
+        } else {
+            ladoA ? violetasA++ : violetasB++;
+        }
+
+        if (chkMostrarDiagnostico->isChecked()) {
+            cv::Scalar color = esAzul ? cv::Scalar(0, 140, 255) : cv::Scalar(220, 0, 220);
+            cv::drawContours(mascaraDiagnostico, contornos, i, color, cv::FILLED);
+        }
+
+        if (chkMostrarResultado->isChecked() && chkMostrarPuntos->isChecked()) {
+            if (esAzul) {
+                cv::circle(imgResultado, cv::Point(cX, cY), 9, cv::Scalar(255, 255, 0), 2);
+            } else {
+                cv::circle(imgResultado, cv::Point(cX, cY), 4, cv::Scalar(0, 255, 0), 1);
             }
         }
     }
 
-    totalColoniasContadas = ladoA + ladoB;
+    int violetas = violetasA + violetasB;
+    int azules = azulesA + azulesB;
+    totalColoniasContadas = violetas + azules;
 
-    qDebug() << "[RESULTADOS] Lado A:" << ladoA << "| Lado B:" << ladoB << "| Ignoradas:" << ignoradas;
+    qDebug() << "[RESULTADOS] Violetas:" << violetas << "| Azules:" << azules << "| Ignoradas:" << ignoradas;
 
-    lblColoniasA->setText("Cantidad de colonias (Rojo): " + QString::number(ladoA));
-    lblColoniasB->setText("Cantidad de colonias (Azul): " + QString::number(ladoB));
+    if (chkDividirLinea->isChecked()) {
+        lblColoniasA->setText(QString("Colonias violetas: %1 (A: %2 | B: %3)").arg(violetas).arg(violetasA).arg(violetasB));
+        lblColoniasB->setText(QString("Colonias azules: %1 (A: %2 | B: %3)").arg(azules).arg(azulesA).arg(azulesB));
+    } else {
+        lblColoniasA->setText("Colonias violetas: " + QString::number(violetas));
+        lblColoniasB->setText("Colonias azules: " + QString::number(azules));
+    }
 
     // --- RENDERIZADO EN UI ---
     if (chkMostrarOriginal->isChecked()) {
@@ -523,12 +561,12 @@ void MainWindow::guardarConfiguracion() {
     settings.setValue("hough2", spinHough2->value());
     settings.setValue("redRadio", spinReduccionRadio->value());
 
-    settings.setValue("rMin", spinRMin->value());
-    settings.setValue("gMin", spinGMin->value());
-    settings.setValue("bMin", spinBMin->value());
-    settings.setValue("rMax", spinRMax->value());
-    settings.setValue("gMax", spinGMax->value());
-    settings.setValue("bMax", spinBMax->value());
+    settings.setValue("fondo", spinFondo->value());
+    settings.setValue("umbralOscuro", spinUmbralOscuro->value());
+    settings.setValue("umbralMagenta", spinUmbralMagenta->value());
+    settings.setValue("satAzul", spinSatAzul->value());
+    settings.setValue("areaMinAzul", spinAreaMinAzul->value());
+    settings.setValue("fraccionAzul", spinFraccionAzul->value());
 
     settings.setValue("areaMin", spinAreaMin->value());
     settings.setValue("areaMax", spinAreaMax->value());
@@ -549,15 +587,15 @@ void MainWindow::cargarConfiguracion() {
     spinHough2->setValue(settings.value("hough2", 30).toInt());
     spinReduccionRadio->setValue(settings.value("redRadio", 12).toInt());
 
-    spinRMin->setValue(settings.value("rMin", 160).toInt());
-    spinGMin->setValue(settings.value("gMin", 160).toInt());
-    spinBMin->setValue(settings.value("bMin", 140).toInt());
-    spinRMax->setValue(settings.value("rMax", 255).toInt());
-    spinGMax->setValue(settings.value("gMax", 255).toInt());
-    spinBMax->setValue(settings.value("bMax", 255).toInt());
+    spinFondo->setValue(settings.value("fondo", 31).toInt());
+    spinUmbralOscuro->setValue(settings.value("umbralOscuro", 25).toInt());
+    spinUmbralMagenta->setValue(settings.value("umbralMagenta", 0).toInt());
+    spinSatAzul->setValue(settings.value("satAzul", 45).toInt());
+    spinAreaMinAzul->setValue(settings.value("areaMinAzul", 15).toInt());
+    spinFraccionAzul->setValue(settings.value("fraccionAzul", 30).toInt());
 
-    spinAreaMin->setValue(settings.value("areaMin", 1).toInt());
-    spinAreaMax->setValue(settings.value("areaMax", 200).toInt());
+    spinAreaMin->setValue(settings.value("areaMin", 2).toInt());
+    spinAreaMax->setValue(settings.value("areaMax", 800).toInt());
 }
 
 void MainWindow::guardarImagenLayout() {
@@ -599,13 +637,14 @@ void MainWindow::guardarImagenLayout() {
 }
 void MainWindow::mostrarInformacion() {
     QString textoInfo =
-        "<h2>Análisis de Placas de Petri v0.9.0</h2>"
+        "<h2>Análisis de Placas de Petri v" APP_VERSION "</h2>"
         "<p>Software paramétrico de visión artificial para el conteo automático de unidades formadoras de colonias.</p>"
         "<hr>"
         "<p><b>Desarrollado para:</b><br>"
         "Laboratorio de Microbiología y Biotecnología de Alimentos (MIBIAL)<br>"
         "Facultad de Ciencias de la Alimentación - UNER</p>"
         "<p><b>Motor de Procesamiento:</b> OpenCV y Qt6 C++</p>"
+        "<p><b>Ícono:</b> OpenMoji (openmoji.org), licencia CC BY-SA 4.0</p>"
         "<p><b>Uso de Parámetros:</b><br>"
                         "- <i>Ancho Proc:</i> Resolución interna de cálculo. <b>Recomendación:</b> No cambiar. Alterarlo desconfigura la escala de radios y áreas.<br>"
                         "- <i>Ángulo Div:</i> Inclinación de la recta separadora. <b>Recomendación:</b> Ajustar en cada foto para alinear con la división física de la placa.<br>"
@@ -613,8 +652,12 @@ void MainWindow::mostrarInformacion() {
                         "- <i>Radio Mín / Máx:</i> Tamaño del círculo de la placa en píxeles. <b>Recomendación:</b> Cambiar solo si la cámara se acercó o alejó mucho.<br>"
                         "- <i>Hough 1 y 2:</i> Sensibilidad matemática del detector de la placa. <b>Recomendación:</b> No tocar a menos que el círculo verde falle.<br>"
                         "- <i>Red. Borde:</i> Margen interno para recortar la imagen. <b>Recomendación:</b> Aumentar si el brillo del borde del plástico cuenta como falsas bacterias.<br>"
-                        "- <i>Filtros RGB (Mín/Máx):</i> Segmentación del color de las colonias. <b>Recomendación:</b> Calibrar siempre según la iluminación para que solo se vean las bacterias en la vista RGB.<br>"
-                        "- <i>Área Mín / Máx:</i> Filtro de tamaño geométrico. <b>Recomendación:</b> Subir el Mínimo para ignorar polvo o ruido; bajar el Máximo para ignorar grietas o reflejos grandes.</p>";
+                        "- <i>Fondo (px):</i> Tamaño de la ventana con que se estima el fondo de la placa. <b>Recomendación:</b> Debe ser bastante mayor que la colonia más grande; subirlo si las colonias azules salen huecas.<br>"
+                        "- <i>Umbral Osc.:</i> Cuánto más oscura que el fondo tiene que ser una mancha para tomarse en cuenta. <b>Recomendación:</b> Bajarlo si quedan puntitos violetas sin marcar; subirlo si aparece la textura de la placa.<br>"
+                        "- <i>Umbral Viol.:</i> Cuánto más rojiza que el fondo tiene que ser la mancha para contarse como violeta. <b>Recomendación:</b> Subirlo si se cuentan puntos grises o polvo.<br>"
+                        "- <i>Sat. Azul / % Azul / Área Mín Az.:</i> Criterio para clasificar una mancha como colonia azul. <b>Recomendación:</b> Bajar Sat. Azul o % Azul si alguna azul se marca como violeta.<br>"
+                        "- <i>Área Mín / Máx:</i> Filtro de tamaño geométrico. <b>Recomendación:</b> Subir el Mínimo para ignorar polvo o ruido; bajar el Máximo para ignorar grietas o reflejos grandes.</p>"
+        "<p><b>Mapa de diagnóstico:</b> magenta = violeta contada, celeste = azul contada, marrón = mancha sin color de colonia, gris = zona muerta, violeta oscuro = muy chica, amarillo = muy grande.</p>";
 
     // El QMessageBox::about es especial para estas ventanas de información institucional
     QMessageBox::about(this, "Acerca del Sistema", textoInfo);
