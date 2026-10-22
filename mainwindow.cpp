@@ -2,6 +2,7 @@
 #include <QFileDialog>
 #include <QDebug>
 #include <cmath>
+#include <climits>
 #include <QFileInfo>
 #include <QComboBox>
 #include <QLineEdit>
@@ -418,7 +419,14 @@ void MainWindow::procesarImagen() {
     double fraccionAzulMin = spinFraccionAzul->value() / 100.0;
 
     for (size_t i = 0; i < contornos.size(); i++) {
-        cv::Rect caja = cv::boundingRect(contornos[i]);
+        int xMin = INT_MAX, yMin = INT_MAX, xMax = INT_MIN, yMax = INT_MIN;
+        for (const cv::Point &p : contornos[i]) {
+            xMin = std::min(xMin, p.x);
+            yMin = std::min(yMin, p.y);
+            xMax = std::max(xMax, p.x);
+            yMax = std::max(yMax, p.y);
+        }
+        cv::Rect caja(xMin, yMin, xMax - xMin + 1, yMax - yMin + 1);
         cv::Mat mancha = cv::Mat::zeros(caja.size(), CV_8UC1);
         cv::drawContours(mancha, contornos, i, cv::Scalar(255), cv::FILLED, cv::LINE_8, cv::noArray(), 0, -caja.tl());
         int area = cv::countNonZero(mancha);
@@ -445,10 +453,18 @@ void MainWindow::procesarImagen() {
             continue;
         }
 
-        cv::Moments M = cv::moments(mancha, true);
-        if (M.m00 == 0) continue;
-        int cX = caja.x + static_cast<int>(M.m10 / M.m00);
-        int cY = caja.y + static_cast<int>(M.m01 / M.m00);
+        long sumaX = 0, sumaY = 0;
+        for (int fy = 0; fy < mancha.rows; fy++) {
+            const uchar *fila = mancha.ptr<uchar>(fy);
+            for (int fx = 0; fx < mancha.cols; fx++) {
+                if (fila[fx]) {
+                    sumaX += fx;
+                    sumaY += fy;
+                }
+            }
+        }
+        int cX = caja.x + static_cast<int>(sumaX / area);
+        int cY = caja.y + static_cast<int>(sumaY / area);
 
         bool ladoA = false;
         if (chkDividirLinea->isChecked()) {
