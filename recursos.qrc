@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>icono.svg</file>
+        <file>logo_fcal.png</file>
     </qresource>
 </RCC>

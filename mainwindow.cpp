@@ -10,6 +10,9 @@
 #include <QDate>
 #include <QMessageBox>
 #include <QIcon>
+#include <QPainter>
+#include <QTabWidget>
+#include <QSlider>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     totalColoniasContadas = 0; // Inicializamos la variable
@@ -37,32 +40,41 @@ void MainWindow::inicializarUI() {
     lblImagenParametrica = new QLabel(this);
     lblImagenResultado = new QLabel(this);
 
-    lblImagenOriginal->setAlignment(Qt::AlignCenter);
-    lblImagenDiagnostico->setAlignment(Qt::AlignCenter);
-    lblImagenParametrica->setAlignment(Qt::AlignCenter);
-    lblImagenResultado->setAlignment(Qt::AlignCenter);
+    lblImagenOriginal->setAlignment(Qt::AlignRight | Qt::AlignBottom);
+    lblImagenDiagnostico->setAlignment(Qt::AlignLeft | Qt::AlignBottom);
+    lblImagenParametrica->setAlignment(Qt::AlignRight | Qt::AlignTop);
+    lblImagenResultado->setAlignment(Qt::AlignLeft | Qt::AlignTop);
 
-    lblImagenOriginal->setText("Sin imagen cargada");
-    lblImagenDiagnostico->setText("Sin imagen cargada");
-    lblImagenParametrica->setText("Sin imagen cargada");
-    lblImagenResultado->setText("Sin imagen cargada");
+    lblImagenOriginal->setProperty("alineacion", int(Qt::AlignRight | Qt::AlignBottom));
+    lblImagenDiagnostico->setProperty("alineacion", int(Qt::AlignLeft | Qt::AlignBottom));
+    lblImagenParametrica->setProperty("alineacion", int(Qt::AlignRight | Qt::AlignTop));
+    lblImagenResultado->setProperty("alineacion", int(Qt::AlignLeft | Qt::AlignTop));
+
+    lblSinImagen = new QLabel("Sin imagen cargada", this);
+    lblSinImagen->setAlignment(Qt::AlignCenter);
+    lblSinImagen->setMinimumSize(806, 606);
 
     lblImagenOriginal->setMinimumSize(400, 300);
     lblImagenDiagnostico->setMinimumSize(400, 300);
     lblImagenParametrica->setMinimumSize(400, 300);
     lblImagenResultado->setMinimumSize(400, 300);
 
-    layoutImagenes->addWidget(new QLabel("<b>1. Imagen Original</b>"), 0, 0, Qt::AlignCenter);
-    layoutImagenes->addWidget(lblImagenOriginal, 1, 0);
+    layoutImagenes->addWidget(lblImagenOriginal, 0, 0);
+    layoutImagenes->addWidget(lblImagenDiagnostico, 0, 1);
+    layoutImagenes->addWidget(lblImagenParametrica, 1, 0);
+    layoutImagenes->addWidget(lblImagenResultado, 1, 1);
+    layoutImagenes->addWidget(lblSinImagen, 0, 0, 2, 2);
+    layoutImagenes->setRowStretch(0, 1);
+    layoutImagenes->setRowStretch(1, 1);
+    layoutImagenes->setColumnStretch(0, 1);
+    layoutImagenes->setColumnStretch(1, 1);
 
-    layoutImagenes->addWidget(new QLabel("<b>2. Mapa de Diagnóstico</b>"), 0, 1, Qt::AlignCenter);
-    layoutImagenes->addWidget(lblImagenDiagnostico, 1, 1);
+    for (QLabel *lbl : {lblImagenOriginal, lblImagenDiagnostico, lblImagenParametrica, lblImagenResultado}) {
+        lbl->hide();
+    }
 
-    layoutImagenes->addWidget(new QLabel("<b>3. Máscara de Manchas</b>"), 2, 0, Qt::AlignCenter);
-    layoutImagenes->addWidget(lblImagenParametrica, 3, 0);
-
-    layoutImagenes->addWidget(new QLabel("<b>4. Resultado Final</b>"), 2, 1, Qt::AlignCenter);
-    layoutImagenes->addWidget(lblImagenResultado, 3, 1);
+    layoutImagenes->setSpacing(6);
+    layoutImagenes->setContentsMargins(0, 0, 0, 0);
 
     // Le decimos al contenedor que tiene permiso para expandirse
     contenedorImagenes->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -134,6 +146,7 @@ void MainWindow::inicializarUI() {
     chkMostrarResultado = new QCheckBox("Mostrar Resultado", this);
     chkDividirLinea = new QCheckBox("Dividir con Línea", this);
     chkMostrarPuntos = new QCheckBox("Mostrar Puntos", this);
+    chkRecortarPlaca = new QCheckBox("Recortar a la Placa", this);
 
     // Activarlos todos por defecto al arrancar
     chkMostrarOriginal->setChecked(true);
@@ -142,6 +155,7 @@ void MainWindow::inicializarUI() {
     chkMostrarResultado->setChecked(true);
     chkDividirLinea->setChecked(true);
     chkMostrarPuntos->setChecked(true);
+    chkRecortarPlaca->setChecked(true);
 
     // Acomodarlos en 2 columnas (Fila, Columna)
     layoutChecks->addWidget(chkMostrarOriginal, 0, 0);
@@ -150,13 +164,12 @@ void MainWindow::inicializarUI() {
     layoutChecks->addWidget(chkMostrarResultado, 1, 1);
     layoutChecks->addWidget(chkDividirLinea, 2, 0);
     layoutChecks->addWidget(chkMostrarPuntos, 2, 1);
+    layoutChecks->addWidget(chkRecortarPlaca, 3, 0);
 
     layoutDerecho->addLayout(layoutChecks);
     layoutDerecho->addSpacing(15);
 
-    // 2. Formulario de Parámetros (Ahora en QGridLayout de 2 columnas)
-    QGridLayout *layoutParametros = new QGridLayout();
-
+    // 2. Parámetros agrupados en pestañas, cada uno con slider y número
     spinResolucion = crearSpinBox(100, 2000, 800);
     spinAngulo = crearSpinBox(0, 360, 65);
     spinZonaMuerta = crearSpinBox(0, 100, 15);
@@ -174,57 +187,46 @@ void MainWindow::inicializarUI() {
     spinAreaMin = crearSpinBox(0, 500, 2);
     spinAreaMax = crearSpinBox(1, 5000, 800);
 
-    layoutDerecho->addWidget(new QLabel("<b>Parametros:</b>", this));
-    // Fila 0
-    layoutParametros->addWidget(new QLabel("Ancho Proc:"), 0, 0);
-    layoutParametros->addWidget(spinResolucion, 0, 1);
-    layoutParametros->addWidget(new QLabel("Ángulo Div:"), 0, 2);
-    layoutParametros->addWidget(spinAngulo, 0, 3);
+    layoutDerecho->addWidget(new QLabel("<b>Parámetros:</b>", this));
 
-    // Fila 1
-    layoutParametros->addWidget(new QLabel("Zona Muerta:"), 1, 0);
-    layoutParametros->addWidget(spinZonaMuerta, 1, 1);
-    layoutParametros->addWidget(new QLabel("Radio Mín:"), 1, 2);
-    layoutParametros->addWidget(spinRadioMin, 1, 3);
+    QTabWidget *pestanas = new QTabWidget(this);
 
-    // Fila 2
-    layoutParametros->addWidget(new QLabel("Radio Máx:"), 2, 0);
-    layoutParametros->addWidget(spinRadioMax, 2, 1);
-    layoutParametros->addWidget(new QLabel("Hough 1:"), 2, 2);
-    layoutParametros->addWidget(spinHough1, 2, 3);
+    QWidget *pagDivision = new QWidget(this);
+    QGridLayout *layDivision = new QGridLayout(pagDivision);
+    agregarParametro(layDivision, "Ángulo división", spinAngulo);
+    agregarParametro(layDivision, "Zona muerta", spinZonaMuerta);
+    layDivision->setRowStretch(layDivision->rowCount(), 1);
+    pestanas->addTab(pagDivision, "División");
 
-    // Fila 3
-    layoutParametros->addWidget(new QLabel("Hough 2:"), 3, 0);
-    layoutParametros->addWidget(spinHough2, 3, 1);
-    layoutParametros->addWidget(new QLabel("Red. Borde:"), 3, 2);
-    layoutParametros->addWidget(spinReduccionRadio, 3, 3);
+    QWidget *pagDeteccion = new QWidget(this);
+    QGridLayout *layDeteccion = new QGridLayout(pagDeteccion);
+    agregarParametro(layDeteccion, "Umbral oscuro", spinUmbralOscuro);
+    agregarParametro(layDeteccion, "Umbral violeta", spinUmbralMagenta);
+    agregarParametro(layDeteccion, "Área mínima", spinAreaMin);
+    agregarParametro(layDeteccion, "Área máxima", spinAreaMax);
+    agregarParametro(layDeteccion, "Saturación azul", spinSatAzul);
+    agregarParametro(layDeteccion, "% azul", spinFraccionAzul);
+    agregarParametro(layDeteccion, "Área mín. azul", spinAreaMinAzul);
+    layDeteccion->setRowStretch(layDeteccion->rowCount(), 1);
+    pestanas->addTab(pagDeteccion, "Detección");
 
-    // Fila 4
-    layoutParametros->addWidget(new QLabel("Fondo (px):"), 4, 0);
-    layoutParametros->addWidget(spinFondo, 4, 1);
-    layoutParametros->addWidget(new QLabel("Umbral Osc.:"), 4, 2);
-    layoutParametros->addWidget(spinUmbralOscuro, 4, 3);
+    QWidget *pagPlaca = new QWidget(this);
+    QGridLayout *layPlaca = new QGridLayout(pagPlaca);
+    agregarParametro(layPlaca, "Hough 1", spinHough1);
+    agregarParametro(layPlaca, "Hough 2", spinHough2);
+    agregarParametro(layPlaca, "Radio mínimo", spinRadioMin);
+    agregarParametro(layPlaca, "Radio máximo", spinRadioMax);
+    agregarParametro(layPlaca, "Reducción borde", spinReduccionRadio);
+    agregarParametro(layPlaca, "Ancho proceso", spinResolucion);
+    agregarParametro(layPlaca, "Fondo (px)", spinFondo);
+    layPlaca->setRowStretch(layPlaca->rowCount(), 1);
+    pestanas->addTab(pagPlaca, "Placa (avanzado)");
 
-    // Fila 5
-    layoutParametros->addWidget(new QLabel("Umbral Viol.:"), 5, 0);
-    layoutParametros->addWidget(spinUmbralMagenta, 5, 1);
-    layoutParametros->addWidget(new QLabel("Sat. Azul:"), 5, 2);
-    layoutParametros->addWidget(spinSatAzul, 5, 3);
+    layoutDerecho->addWidget(pestanas);
 
-    // Fila 6
-    layoutParametros->addWidget(new QLabel("Área Mín Az.:"), 6, 0);
-    layoutParametros->addWidget(spinAreaMinAzul, 6, 1);
-    layoutParametros->addWidget(new QLabel("% Azul:"), 6, 2);
-    layoutParametros->addWidget(spinFraccionAzul, 6, 3);
-
-    // Fila 7
-    layoutParametros->addWidget(new QLabel("Área Mín:"), 7, 0);
-    layoutParametros->addWidget(spinAreaMin, 7, 1);
-    layoutParametros->addWidget(new QLabel("Área Máx:"), 7, 2);
-    layoutParametros->addWidget(spinAreaMax, 7, 3);
-
-    // Finalmente, lo sumamos al layoutDerecho (asegurate de cambiar addLayout a este)
-    layoutDerecho->addLayout(layoutParametros);
+    QPushButton *btnRestaurar = new QPushButton("Restaurar valores", this);
+    layoutDerecho->addWidget(btnRestaurar, 0, Qt::AlignRight);
+    connect(btnRestaurar, &QPushButton::clicked, this, &MainWindow::restaurarValores);
 
     layoutDerecho->addStretch(); // Empuja todos los controles hacia arriba para que no queden flotando
 
@@ -240,12 +242,14 @@ void MainWindow::inicializarUI() {
     connect(chkMostrarResultado, &QCheckBox::toggled, this, &MainWindow::procesarImagen);
     connect(chkDividirLinea, &QCheckBox::toggled, this, &MainWindow::procesarImagen);
     connect(chkMostrarPuntos, &QCheckBox::toggled, this, &MainWindow::procesarImagen);
+    connect(chkRecortarPlaca, &QCheckBox::toggled, this, &MainWindow::procesarImagen);
 }
 
 QSpinBox* MainWindow::crearSpinBox(int min, int max, int valorInicial) {
     QSpinBox *spin = new QSpinBox(this);
     spin->setRange(min, max);
     spin->setValue(valorInicial);
+    spin->setProperty("defecto", valorInicial);
 
     // NUEVO: Fija el ancho del cuadro para que no ocupe toda la pantalla
     spin->setMaximumWidth(60);
@@ -285,7 +289,7 @@ void MainWindow::cargarImagen() {
 }
 
 void MainWindow::procesarImagen() {
-    if (imagenOriginal.empty()) return;
+    if (imagenOriginal.empty() || pausarProceso) return;
 
     qDebug() << "----------------------------------------";
     qDebug() << "[LOG] Iniciando procesamiento paramétrico (Con ROI)...";
@@ -303,7 +307,7 @@ void MainWindow::procesarImagen() {
         altoNuevo = imgRedimensionada.rows;
     }
 
-    lblInfoResolucionNueva->setText("Resolución actual: " + QString::number(anchoObj) + " x " + QString::number(altoNuevo) + " px");
+    lblInfoResolucionNueva->setText("Resolución actual: " + QString::number(imgRedimensionada.cols) + " x " + QString::number(altoNuevo) + " px");
 
     cv::Mat imgRGB, imgResultado, mascaraDiagnostico;
     cv::cvtColor(imgRedimensionada, imgRGB, cv::COLOR_BGR2RGB);
@@ -519,37 +523,143 @@ void MainWindow::procesarImagen() {
     }
 
     // --- RENDERIZADO EN UI ---
+    lblSinImagen->hide();
+    acomodarCapas();
+
+    cv::Rect vista(0, 0, imgRedimensionada.cols, imgRedimensionada.rows);
+    if (chkRecortarPlaca->isChecked() && !circulos.empty()) {
+        int m = 4;
+        vista &= cv::Rect(x_circulo - r_circulo - m, y_circulo - r_circulo - m, 2 * (r_circulo + m), 2 * (r_circulo + m));
+    }
+
     if (chkMostrarOriginal->isChecked()) {
-        QImage qOriginal = matToQImage(imgRGB);
-        lblImagenOriginal->setPixmap(QPixmap::fromImage(qOriginal).scaled(lblImagenOriginal->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        mostrarImagen(lblImagenOriginal, matToQImage(imgRGB(vista)), "1. Imagen Original");
     } else {
-        lblImagenOriginal->clear();
-        lblImagenOriginal->setText("Desactivada para ahorrar memoria");
+        mostrarDesactivada(lblImagenOriginal, "Imagen Original", QSize(vista.width, vista.height));
     }
 
     if (chkMostrarDiagnostico->isChecked()) {
-        QImage qDiagnostico = matToQImage(mascaraDiagnostico);
-        lblImagenDiagnostico->setPixmap(QPixmap::fromImage(qDiagnostico).scaled(lblImagenDiagnostico->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        mostrarImagen(lblImagenDiagnostico, matToQImage(mascaraDiagnostico(vista)), "2. Mapa de Diagnóstico");
     } else {
-        lblImagenDiagnostico->clear();
-        lblImagenDiagnostico->setText("Desactivada para ahorrar memoria");
+        mostrarDesactivada(lblImagenDiagnostico, "Mapa de Diagnóstico", QSize(vista.width, vista.height));
     }
 
     if (chkMostrarRGB->isChecked()) {
-        QImage qParametrica = matToQImage(mascara_colonias);
-        lblImagenParametrica->setPixmap(QPixmap::fromImage(qParametrica).scaled(lblImagenParametrica->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        mostrarImagen(lblImagenParametrica, matToQImage(mascara_colonias(vista)), "3. Máscara de Manchas");
     } else {
-        lblImagenParametrica->clear();
-        lblImagenParametrica->setText("Desactivada para ahorrar memoria");
+        mostrarDesactivada(lblImagenParametrica, "Máscara de Manchas", QSize(vista.width, vista.height));
     }
 
     if (chkMostrarResultado->isChecked()) {
-        QImage qResultado = matToQImage(imgResultado);
-        lblImagenResultado->setPixmap(QPixmap::fromImage(qResultado).scaled(lblImagenResultado->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        mostrarImagen(lblImagenResultado, matToQImage(imgResultado(vista)), "4. Resultado Final");
     } else {
-        lblImagenResultado->clear();
-        lblImagenResultado->setText("Desactivada para ahorrar memoria");
+        mostrarDesactivada(lblImagenResultado, "Resultado Final", QSize(vista.width, vista.height));
     }
+}
+
+void MainWindow::agregarParametro(QGridLayout *layout, const QString &nombre, QSpinBox *spin) {
+    QSlider *slider = new QSlider(Qt::Horizontal, this);
+    slider->setRange(spin->minimum(), spin->maximum());
+    slider->setValue(spin->value());
+    slider->setTracking(false);
+
+    connect(slider, &QSlider::sliderMoved, this, [spin](int valor) {
+        QSignalBlocker bloqueo(spin);
+        spin->setValue(valor);
+    });
+    connect(slider, &QSlider::valueChanged, this, [this, spin](int valor) {
+        if (spin->value() == valor) {
+            procesarImagen();
+        } else {
+            spin->setValue(valor);
+        }
+    });
+    connect(spin, QOverload<int>::of(&QSpinBox::valueChanged), slider, [slider](int valor) {
+        QSignalBlocker bloqueo(slider);
+        slider->setValue(valor);
+    });
+
+    int fila = layout->rowCount();
+    layout->addWidget(new QLabel(nombre, this), fila, 0);
+    layout->addWidget(slider, fila, 1);
+    layout->addWidget(spin, fila, 2);
+}
+
+void MainWindow::restaurarValores() {
+    pausarProceso = true;
+    for (QSpinBox *spin : findChildren<QSpinBox *>()) {
+        if (spin->property("defecto").isValid()) {
+            spin->setValue(spin->property("defecto").toInt());
+        }
+    }
+    pausarProceso = false;
+    procesarImagen();
+}
+
+void MainWindow::mostrarImagen(QLabel *destino, const QImage &imagen, const QString &titulo) {
+    QPixmap pixmap = QPixmap::fromImage(imagen).scaled(destino->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+    QPainter pintor(&pixmap);
+    QFont fuente = font();
+    fuente.setBold(true);
+    fuente.setPixelSize(14);
+    pintor.setFont(fuente);
+    QRect caja = pintor.fontMetrics().boundingRect(titulo).adjusted(-6, -3, 6, 3);
+    caja.moveTopLeft(QPoint(4, 4));
+    pintor.fillRect(caja, QColor(0, 0, 0, 150));
+    pintor.setPen(Qt::white);
+    pintor.drawText(caja, Qt::AlignCenter, titulo);
+    pintor.end();
+
+    destino->setAlignment(Qt::Alignment(destino->property("alineacion").toInt()));
+    destino->setPixmap(pixmap);
+}
+
+void MainWindow::acomodarCapas() {
+    QGridLayout *grilla = qobject_cast<QGridLayout *>(contenedorImagenes->layout());
+    QList<QLabel *> capas = {lblImagenOriginal, lblImagenDiagnostico, lblImagenParametrica, lblImagenResultado};
+    QList<QCheckBox *> checks = {chkMostrarOriginal, chkMostrarDiagnostico, chkMostrarRGB, chkMostrarResultado};
+    QList<int> alineaciones = {int(Qt::AlignRight | Qt::AlignBottom), int(Qt::AlignLeft | Qt::AlignBottom),
+                               int(Qt::AlignRight | Qt::AlignTop), int(Qt::AlignLeft | Qt::AlignTop)};
+
+    int activas = 0;
+    for (QCheckBox *chk : checks) {
+        if (chk->isChecked()) activas++;
+    }
+
+    for (int i = 0; i < capas.size(); i++) {
+        grilla->removeWidget(capas[i]);
+        if (activas == 1) {
+            if (checks[i]->isChecked()) {
+                capas[i]->setProperty("alineacion", int(Qt::AlignCenter));
+                grilla->addWidget(capas[i], 0, 0, 2, 2);
+                capas[i]->show();
+            } else {
+                capas[i]->hide();
+            }
+        } else {
+            capas[i]->setProperty("alineacion", alineaciones[i]);
+            grilla->addWidget(capas[i], i / 2, i % 2);
+            capas[i]->show();
+        }
+    }
+    grilla->activate();
+}
+
+void MainWindow::mostrarDesactivada(QLabel *destino, const QString &nombre, const QSize &tamImagen) {
+    QSize tam = tamImagen.scaled(destino->size(), Qt::KeepAspectRatio);
+    QPixmap pixmap(tam);
+    pixmap.fill(palette().color(QPalette::Window));
+
+    QPainter pintor(&pixmap);
+    pintor.setPen(QPen(palette().color(QPalette::Mid), 1, Qt::DashLine));
+    pintor.drawRect(pixmap.rect().adjusted(0, 0, -1, -1));
+    pintor.setPen(palette().color(QPalette::WindowText));
+    pintor.drawText(pixmap.rect(), Qt::AlignCenter | Qt::TextWordWrap, "Capa " + nombre + " desactivada");
+    pintor.end();
+
+    destino->setAlignment(Qt::Alignment(destino->property("alineacion").toInt()));
+    destino->setPixmap(pixmap);
 }
 
 QImage MainWindow::matToQImage(const cv::Mat &mat) {
@@ -615,6 +725,65 @@ void MainWindow::cargarConfiguracion() {
     spinAreaMax->setValue(settings.value("areaMax", 800).toInt());
 }
 
+QImage MainWindow::componerImagenGuardado() {
+    QPixmap captura = contenedorImagenes->grab();
+    qreal dpr = captura.devicePixelRatio();
+    int anchoL = qRound(captura.width() / dpr);
+    int altoL = qRound(captura.height() / dpr);
+
+    QStringList datos;
+    datos << QString("Tipo: %1     ID de placa: %2     Fecha: %3")
+                 .arg(comboBacterias->currentText(),
+                      txtIdPlaca->text().trimmed().isEmpty() ? "-" : txtIdPlaca->text().trimmed(),
+                      QDate::currentDate().toString("dd/MM/yyyy"));
+    datos << lblInfoNombre->text().replace("Nombre:", "Imagen:");
+    datos << lblColoniasA->text();
+    datos << lblColoniasB->text();
+    datos << QString("Total de colonias: %1").arg(totalColoniasContadas);
+
+    QFont fuente = font();
+    fuente.setPixelSize(16);
+    QFontMetrics metricas(fuente);
+    int margen = 12;
+    int altoLinea = metricas.height() + 4;
+    int banda = datos.size() * altoLinea + 2 * margen;
+
+    QImage salida(QSize(anchoL, altoL + banda) * dpr, QImage::Format_RGB32);
+    salida.setDevicePixelRatio(dpr);
+    salida.fill(Qt::white);
+
+    QPainter pintor(&salida);
+    pintor.setRenderHint(QPainter::TextAntialiasing);
+    pintor.setPen(Qt::black);
+    for (int i = 0; i < datos.size(); i++) {
+        fuente.setBold(i >= 2);
+        pintor.setFont(fuente);
+        pintor.drawText(margen, margen + i * altoLinea + metricas.ascent(), datos[i]);
+    }
+    int anchoTexto = 0;
+    for (int i = 0; i < datos.size(); i++) {
+        fuente.setBold(i >= 2);
+        anchoTexto = std::max(anchoTexto, QFontMetrics(fuente).horizontalAdvance(datos[i]));
+    }
+    QImage logo(":/logo_fcal.png");
+    if (!logo.isNull()) {
+        QSize lugar(anchoL - anchoTexto - 3 * margen, std::min(80, banda - 2 * margen));
+        if (lugar.width() > 0 && lugar.height() > 0) {
+            QSize tamLogo = logo.size().scaled(lugar, Qt::KeepAspectRatio);
+            QRect destinoLogo(QPoint(anchoL - margen - tamLogo.width(), margen), tamLogo);
+            pintor.setRenderHint(QPainter::SmoothPixmapTransform);
+            pintor.drawImage(destinoLogo, logo);
+        }
+    }
+
+    pintor.setPen(QColor(180, 180, 180));
+    pintor.drawLine(0, banda - 1, anchoL, banda - 1);
+    pintor.drawPixmap(0, banda, captura);
+    pintor.end();
+
+    return salida;
+}
+
 void MainWindow::guardarImagenLayout() {
     if (imagenOriginal.empty()) {
         QMessageBox::warning(this, "Aviso", "No hay ninguna imagen procesada para guardar.");
@@ -648,8 +817,9 @@ void MainWindow::guardarImagenLayout() {
 
     if (!rutaGuardado.isEmpty()) {
         // Sacar la "captura" al widget que contiene las 4 imágenes
-        QPixmap captura = contenedorImagenes->grab();
-        if (captura.save(rutaGuardado)) {
+        QImage salida = componerImagenGuardado();
+
+        if (salida.save(rutaGuardado)) {
             qDebug() << "[LOG] Layout guardado en:" << rutaGuardado;
             QMessageBox::information(this, "Éxito", "Imagen guardada correctamente.");
         } else {
@@ -667,18 +837,18 @@ void MainWindow::mostrarInformacion() {
         "Facultad de Ciencias de la Alimentación - UNER</p>"
         "<p><b>Motor de Procesamiento:</b> OpenCV y Qt6 C++</p>"
         "<p><b>Ícono:</b> OpenMoji (openmoji.org), licencia CC BY-SA 4.0</p>"
-        "<p><b>Uso de Parámetros:</b><br>"
-                        "- <i>Ancho Proc:</i> Resolución interna de cálculo. <b>Recomendación:</b> No cambiar. Alterarlo desconfigura la escala de radios y áreas.<br>"
-                        "- <i>Ángulo Div:</i> Inclinación de la recta separadora. <b>Recomendación:</b> Ajustar en cada foto para alinear con la división física de la placa.<br>"
-                        "- <i>Zona Muerta:</i> Margen ignorado en la línea divisoria. <b>Recomendación:</b> Ajustar solo si hay ruido o bacterias pisando la raya.<br>"
-                        "- <i>Radio Mín / Máx:</i> Tamaño del círculo de la placa en píxeles. <b>Recomendación:</b> Cambiar solo si la cámara se acercó o alejó mucho.<br>"
+        "<p><b>Uso de Parámetros:</b> agrupados en las pestañas División, Detección y Placa (avanzado). El botón <i>Restaurar valores</i> vuelve a los valores de fábrica.<br>"
+                        "- <i>Ancho proceso:</i> Resolución interna de cálculo. <b>Recomendación:</b> No cambiar. Alterarlo desconfigura la escala de radios y áreas.<br>"
+                        "- <i>Ángulo división:</i> Inclinación de la recta separadora. <b>Recomendación:</b> Ajustar en cada foto para alinear con la división física de la placa.<br>"
+                        "- <i>Zona muerta:</i> Margen ignorado en la línea divisoria. <b>Recomendación:</b> Ajustar solo si hay ruido o bacterias pisando la raya.<br>"
+                        "- <i>Radio mínimo / máximo:</i> Tamaño del círculo de la placa en píxeles. <b>Recomendación:</b> Cambiar solo si la cámara se acercó o alejó mucho.<br>"
                         "- <i>Hough 1 y 2:</i> Sensibilidad matemática del detector de la placa. <b>Recomendación:</b> No tocar a menos que el círculo verde falle.<br>"
-                        "- <i>Red. Borde:</i> Margen interno para recortar la imagen. <b>Recomendación:</b> Aumentar si el brillo del borde del plástico cuenta como falsas bacterias.<br>"
+                        "- <i>Reducción borde:</i> Margen interno para recortar la imagen. <b>Recomendación:</b> Aumentar si el brillo del borde del plástico cuenta como falsas bacterias.<br>"
                         "- <i>Fondo (px):</i> Tamaño de la ventana con que se estima el fondo de la placa. <b>Recomendación:</b> Debe ser bastante mayor que la colonia más grande; subirlo si las colonias azules salen huecas.<br>"
-                        "- <i>Umbral Osc.:</i> Cuánto más oscura que el fondo tiene que ser una mancha para tomarse en cuenta. <b>Recomendación:</b> Bajarlo si quedan puntitos violetas sin marcar; subirlo si aparece la textura de la placa.<br>"
-                        "- <i>Umbral Viol.:</i> Cuánto más rojiza que el fondo tiene que ser la mancha para contarse como violeta. <b>Recomendación:</b> Subirlo si se cuentan puntos grises o polvo.<br>"
-                        "- <i>Sat. Azul / % Azul / Área Mín Az.:</i> Criterio para clasificar una mancha como colonia azul. <b>Recomendación:</b> Bajar Sat. Azul o % Azul si alguna azul se marca como violeta.<br>"
-                        "- <i>Área Mín / Máx:</i> Filtro de tamaño geométrico. <b>Recomendación:</b> Subir el Mínimo para ignorar polvo o ruido; bajar el Máximo para ignorar grietas o reflejos grandes.</p>"
+                        "- <i>Umbral oscuro:</i> Cuánto más oscura que el fondo tiene que ser una mancha para tomarse en cuenta. <b>Recomendación:</b> Bajarlo si quedan puntitos violetas sin marcar; subirlo si aparece la textura de la placa.<br>"
+                        "- <i>Umbral violeta:</i> Cuánto más rojiza que el fondo tiene que ser la mancha para contarse como violeta. <b>Recomendación:</b> Subirlo si se cuentan puntos grises o polvo.<br>"
+                        "- <i>Saturación azul / % azul / Área mín. azul:</i> Criterio para clasificar una mancha como colonia azul. <b>Recomendación:</b> Bajar Saturación azul o % azul si alguna azul se marca como violeta.<br>"
+                        "- <i>Área mínima / máxima:</i> Filtro de tamaño geométrico. <b>Recomendación:</b> Subir la mínima para ignorar polvo o ruido; bajar la máxima para ignorar grietas o reflejos grandes.</p>"
         "<p><b>Mapa de diagnóstico:</b> magenta = violeta contada, celeste = azul contada, marrón = mancha sin color de colonia, gris = zona muerta, violeta oscuro = muy chica, amarillo = muy grande.</p>";
 
     // El QMessageBox::about es especial para estas ventanas de información institucional
