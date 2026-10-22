@@ -88,7 +88,8 @@ void MainWindow::inicializarUI() {
 
     comboBacterias = new QComboBox(this);
 
-    comboBacterias->addItems({"Escherichia", "Staphylococcus", "Bacillus"});
+    comboBacterias->addItems({"Escherichia coli", "Coliformes totales", "Aerobios mesófilos totales",
+                              "Pseudomonas aeruginosa", "Bacillus", "Staphylococcus"});
     comboBacterias->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     txtIdPlaca = new QLineEdit(this);
@@ -624,7 +625,12 @@ void MainWindow::guardarImagenLayout() {
     QString fechaActual = QDate::currentDate().toString("yyMMdd");
 
     // 2. Obtener el nombre de la bacteria y pasarlo a minúsculas
-    QString bacteria = comboBacterias->currentText().toLower();
+    QString bacteria;
+    for (const QChar &ch : comboBacterias->currentText().toLower().normalized(QString::NormalizationForm_D)) {
+        if (ch.isLetterOrNumber() && ch.unicode() < 128) bacteria += ch;
+        else if (ch.isSpace()) bacteria += '_';
+    }
+    bacteria += '_';
 
     // 3. Obtener el ID de la placa (si está vacío, le ponemos un "sin_id")
     QString idPlaca = txtIdPlaca->text().trimmed();
